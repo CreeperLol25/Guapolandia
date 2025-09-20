@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Editor de País — Página editable y persistente</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#7c3aed;--muted:#9aa6b2;--panel:#0f1724}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#071029 0%, #0b1220 100%);color:#e6eef6}
+    header{padding:18px 24px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;gap:16px;align-items:center}
+    header h1{margin:0;font-size:20px}
+    .container{display:grid;grid-template-columns:320px 1fr;gap:18px;padding:18px}
+    nav{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:12px;border-radius:12px}
+    nav button, .section button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px;border-radius:8px;cursor:pointer}
+    nav button.active{background:var(--accent);border-color:transparent}
+    .main{padding:12px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))}
+    .section{background:rgba(255,255,255,0.02);padding:14px;border-radius:12px;margin-bottom:12px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], input[type=date], select, textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+    .row{display:flex;gap:8px}
+    .small{width:120px}
+    .list-item{border:1px dashed rgba(255,255,255,0.04);padding:8px;border-radius:8px;margin-bottom:8px}
+    .img-preview{max-width:180px;max-height:120px;border-radius:8px}
+    .controls{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    .muted{color:var(--muted);font-size:13px}
+    .topbar-actions{margin-left:auto;display:flex;gap:8px}
+    .danger{background:#6b0f0f}
+    footer{padding:12px;text-align:center;color:var(--muted)}
+    .flex{display:flex;align-items:center;gap:8px}
+    .color-box{width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)}
+    .chart-wrap{max-width:420px}
+    .file-list img{max-width:120px;margin-right:6px;border-radius:6px}
+    .export-btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px;border-radius:8px;cursor:pointer}
+    .headline{display:flex;align-items:center;gap:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="headline">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style="border-radius:8px;background:linear-gradient(45deg,#1f2937,#111827);padding:6px"><path d="M12 2l3 7h7l-5.5 4 2 7L12 17l-7.5 3 2-7L1 9h7l3-7z" fill="#7c3aed"/></svg>
+      <div>
+        <h1>Editor de País — Interactivo</h1>
+        <div class="muted">Editable, ampliable y guardado localmente (localStorage)</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="exportJSON" title="Exportar todo como JSON">Exportar JSON</button>
+      <button id="importJSON" title="Importar JSON">Importar JSON</button>
+      <input id="importFile" type="file" accept="application/json" style="display:none"/>
+      <button id="clearAll" class="danger" title="Borrar todo">Borrar todo</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav>
+      <div style="margin-bottom:8px"><strong>Secciones</strong></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="navBtn active" data-target="general">Información general</button>
+        <button class="navBtn" data-target="flags">Histórico de banderas</button>
+        <button class="navBtn" data-target="leaders">Presidentes y Reyes</button>
+        <button class="navBtn" data-target="elections">Resultados electorales</button>
+        <button class="navBtn" data-target="parties">Partidos</button>
+        <button class="navBtn" data-target="misc">Anuncios / Archivos</button>
+      </div>
+      <hr style="margin:10px 0;border-color:rgba(255,255,255,0.03)"/>
+      <div class="muted">Consejos:</div>
+      <ul class="muted">
+        <li>Todo se guarda automáticamente.</li>
+        <li>Las imágenes y audios se almacenan como datos en localStorage (puede ocupar espacio).</li>
+        <li>Usa Exportar para hacer copia de seguridad.</li>
+      </ul>
+    </nav>
+
+    <main class="main">
+      <!-- GENERAL -->
+      <section id="general" class="section">
+        <h2>Información general</h2>
+        <label>Nombre del país</label>
+        <input id="countryName" type="text" placeholder="Ej: República Ejemplo" />
+
+        <label>Himno (URL o archivo)</label>
+        <div class="row">
+          <input id="anthemUrl" type="text" placeholder="Pegar URL (YouTube, MP3, etc.)" />
+          <input id="anthemFile" type="file" accept="audio/*,video/*" />
+        </div>
+        <div class="muted">Si subes un archivo, se guardará localmente.</div>
+
+        <label>Foto del país</label>
+        <input id="countryPhoto" type="file" accept="image/*" />
+        <div id="countryPhotoPreview" style="margin-top:8px"></div>
+
+        <label>Capital</label>
+        <input id="capitalName" type="text" />
+
+        <label>Ciudades (separadas por comas)</label>
+        <input id="cities" type="text" placeholder="Ciudad1, Ciudad2, ..." />
+
+        <label>Próximas elecciones</label>
+        <input id="nextElections" type="date" />
+
+        <div class="controls">
+          <button id="saveGeneral">Guardar ahora</button>
+          <button id="resetGeneral" class="danger">Reset</button>
+        </div>
+      </section>
+
+      <!-- FLAGS -->
+      <section id="flags" class="section" style="display:none">
+        <h2>Histórico de banderas</h2>
+        <div id="flagsList"></div>
+        <button id="addFlag">Añadir bandera</button>
+      </section>
+
+      <!-- LEADERS -->
+      <section id="leaders" class="section" style="display:none">
+        <h2>Presidentes y Reyes</h2>
+        <div id="leadersList"></div>
+        <button id="addLeader">Añadir líder</button>
+      </section>
+
+      <!-- ELECTIONS -->
+      <section id="elections" class="section" style="display:none">
+        <h2>Resultados electorales</h2>
+        <div id="electionsList"></div>
+        <button id="addElection">Añadir elección</button>
+      </section>
+
+      <!-- PARTIES -->
+      <section id="parties" class="section" style="display:none">
+        <h2>Partidos</h2>
+        <div id="partiesList"></div>
+        <button id="addParty">Añadir partido</button>
+      </section>
+
+      <!-- MISC -->
+      <section id="misc" class="section" style="display:none">
+        <h2>Anuncios / Archivos</h2>
+        <div id="miscList"></div>
+        <button id="addMisc">Añadir</button>
+      </section>
+
+    </main>
+  </div>
+  <footer>Hecho para ti — Guarda mediante Exportar/Importar si quieres moverlo entre equipos.</footer>
+
+<script>
+// --- Manejo de datos en localStorage ---
+const STORAGE_KEY = 'pais_editor_v1';
+let state = {
+  general: {countryName:'',anthemUrl:'',anthemFile:null,countryPhoto:null,capitalName:'',cities:'',nextElections:''},
+  flags:[], // {id, image, startDate, endDate, endIsToday}
+  leaders:[], // {id,name,title,startDate,endDate,notes,image}
+  elections:[], // {id,date,title,notes,parties:[{name,percent,color}]}
+  parties:[], // {id,name,position,logo}
+  misc:[] // {id,title,type,file,data}
+};
+
+function uid(prefix='id'){return prefix+Math.random().toString(36).slice(2,9)}
+
+function saveState(){
+  // Don't store functions; state contains base64 images
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadState(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(raw){
+    try{ state = JSON.parse(raw); }catch(e){ console.error('parse',e) }
+  }
+}
+
+// --- Helpers para archivos ---
+function fileToDataURL(file, cb){
+  const reader = new FileReader();
+  reader.onload = ()=>cb(reader.result);
+  reader.readAsDataURL(file);
+}
+
+// --- Render ---
+function renderAll(){
+  renderGeneral();
+  renderFlags();
+  renderLeaders();
+  renderElections();
+  renderParties();
+  renderMisc();
+}
+
+// --- General ---
+function renderGeneral(){
+  const g = state.general;
+  document.getElementById('countryName').value = g.countryName || '';
+  document.getElementById('anthemUrl').value = g.anthemUrl || '';
+  document.getElementById('capitalName').value = g.capitalName || '';
+  document.getElementById('cities').value = g.cities || '';
+  document.getElementById('nextElections').value = g.nextElections || '';
+  const preview = document.getElementById('countryPhotoPreview'); preview.innerHTML = '';
+  if(g.countryPhoto){ const img = document.createElement('img'); img.src=g.countryPhoto; img.className='img-preview'; preview.appendChild(img)}
+}
+
+// --- Flags ---
+function renderFlags(){
+  const container = document.getElementById('flagsList'); container.innerHTML='';
+  state.flags.forEach(f=>{
+    const div = document.createElement('div'); div.className='list-item';
+    div.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:center">
+        <div>
+          ${f.image?`<img src="${f.image}" class="img-preview">`:'<div class="img-preview" style="background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center">Sin imagen</div>'}
+        </div>
+        <div style="flex:1">
+          <label>Fecha inicio</label>
+          <input type="date" data-id="${f.id}" data-field="startDate" value="${f.startDate||''}">
+          <div style="margin-top:6px">
+            <label>Fecha fin</label>
+            <input type="date" data-id="${f.id}" data-field="endDate" value="${f.endDate||''}">
+            <label class="muted" style="display:block;margin-top:6px"><input type="checkbox" data-id="${f.id}" data-field="endIsToday" ${f.endIsToday? 'checked':''}> Usar "hoy" (se actualiza a diario)</label>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input type="file" data-id="${f.id}" accept="image/*">
+          <button data-action="delete" data-id="${f.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// --- Leaders ---
+function renderLeaders(){
+  const container = document.getElementById('leadersList'); container.innerHTML='';
+  state.leaders.forEach(l=>{
+    const div = document.createElement('div'); div.className='list-item';
+    div.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div>${l.image?`<img src="${l.image}" class="img-preview">`:'<div class="img-preview" style="background:rgba(255,255,255,0.02);display:flex;align-items:center;justify-content:center">Sin imagen</div>'}</div>
+        <div style="flex:1">
+          <label>Nombre</label>
+          <input type="text" data-id="${l.id}" data-field="name" value="${escapeHtml(l.name||'')}" />
+          <label>Título</label>
+          <input type="text" data-id="${l.id}" data-field="title" value="${escapeHtml(l.title||'')}" />
+          <div class="row">
+            <input type="date" data-id="${l.id}" data-field="startDate" value="${l.startDate||''}">
+            <input type="date" data-id="${l.id}" data-field="endDate" value="${l.endDate||''}">
+          </div>
+          <label>Notas</label>
+          <textarea data-id="${l.id}" data-field="notes">${escapeHtml(l.notes||'')}</textarea>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input type="file" data-id="${l.id}" accept="image/*">
+          <button data-action="deleteLeader" data-id="${l.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// --- Elections ---
+function renderElections(){
+  const container = document.getElementById('electionsList'); container.innerHTML='';
+  state.elections.forEach(e=>{
+    const div = document.createElement('div'); div.className='list-item';
+    let partiesHtml = '';
+    e.parties.forEach((p, idx)=>{
+      partiesHtml += `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" data-election="${e.id}" data-party="${idx}" data-field="pname" value="${escapeHtml(p.name||'')}" placeholder="Partido">
+          <input type="number" min="0" max="100" step="0.1" data-election="${e.id}" data-party="${idx}" data-field="ppercent" value="${p.percent||0}" style="width:90px">
+          <input type="color" data-election="${e.id}" data-party="${idx}" data-field="pcolor" value="${p.color||'#cccccc'}">
+          <button data-action="delParty" data-election="${e.id}" data-party="${idx}">Eliminar</button>
+        </div>
+      `;
+    });
+    div.innerHTML = `
+      <label>Fecha</label>
+      <input type="date" data-id="${e.id}" data-field="date" value="${e.date||''}">
+      <label>Título / nota</label>
+      <input type="text" data-id="${e.id}" data-field="title" value="${escapeHtml(e.title||'')}" placeholder="Ej: Elecciones generales">
+      <label>Partidos y porcentajes</label>
+      <div>${partiesHtml}</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <button data-action="addParty" data-id="${e.id}">Añadir partido</button>
+        <button data-action="delElection" data-id="${e.id}">Eliminar elección</button>
+      </div>
+      <div style="margin-top:8px" class="chart-wrap"><canvas id="chart_${e.id}"></canvas></div>
+    `;
+    container.appendChild(div);
+  });
+  // crear gráficos
+  state.elections.forEach(e=>{
+    const ctx = document.getElementById('chart_'+e.id);
+    if(!ctx) return;
+    const data = e.parties.map(p=>p.percent||0);
+    const labels = e.parties.map(p=>p.name||'');
+    const colors = e.parties.map(p=>p.color||'#cccccc');
+    try{
+      new Chart(ctx, {type:'pie',data:{labels, datasets:[{data, backgroundColor:colors}]}, options:{plugins:{legend:{labels:{color:'#e6eef6'}}}}});
+    }catch(err){console.error(err)}
+  })
+}
+
+// --- Parties ---
+function renderParties(){
+  const container = document.getElementById('partiesList'); container.innerHTML='';
+  state.parties.forEach(p=>{
+    const div = document.createElement('div'); div.className='list-item';
+    div.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:center">
+        <div>${p.logo?`<img src="${p.logo}" style="width:80px;border-radius:8px">`:'<div style="width:80px;height:50px;background:rgba(255,255,255,0.02);border-radius:6px"></div>'}</div>
+        <div style="flex:1">
+          <input type="text" data-id="${p.id}" data-field="pname" value="${escapeHtml(p.name||'')}" placeholder="Nombre partido">
+          <select data-id="${p.id}" data-field="position">
+            <option value="izquierda" ${p.position==='izquierda'?'selected':''}>Izquierda</option>
+            <option value="centro" ${p.position==='centro'?'selected':''}>Centro</option>
+            <option value="derecha" ${p.position==='derecha'?'selected':''}>Derecha</option>
+            <option value="otro" ${p.position==='otro'?'selected':''}>Otro</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input type="file" data-id="${p.id}" accept="image/*">
+          <button data-action="delPartyGlobal" data-id="${p.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// --- Misc ---
+function renderMisc(){
+  const container = document.getElementById('miscList'); container.innerHTML='';
+  state.misc.forEach(m=>{
+    const div = document.createElement('div'); div.className='list-item';
+    div.innerHTML = `
+      <div style="display:flex;gap:12px;align-items:center">
+        <div style="flex:1">
+          <input type="text" data-id="${m.id}" data-field="title" value="${escapeHtml(m.title||'')}" placeholder="Título" />
+          <div class="muted">Tipo: ${m.type||'archivo'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input type="file" data-id="${m.id}" >
+          <button data-action="delMisc" data-id="${m.id}">Eliminar</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// --- Eventos globales (delegation) ---
+document.addEventListener('input', (ev)=>{
+  const t = ev.target;
+  if(!t) return;
+  // general fields
+  if(t.id==='countryName') state.general.countryName = t.value, saveState();
+  if(t.id==='anthemUrl') state.general.anthemUrl = t.value, saveState();
+  if(t.id==='capitalName') state.general.capitalName = t.value, saveState();
+  if(t.id==='cities') state.general.cities = t.value, saveState();
+  if(t.id==='nextElections') state.general.nextElections = t.value, saveState();
+
+  // dataset fields by data-id/data-field
+  const did = t.getAttribute('data-id');
+  const dfield = t.getAttribute('data-field');
+  if(did && dfield){
+    // flags
+    if(dfield==='startDate' || dfield==='endDate' || dfield==='endIsToday'){
+      const f = state.flags.find(x=>x.id===did); if(!f) return;
+      if(dfield==='endIsToday') { f.endIsToday = t.checked; if(t.checked){ f.endDate = null } }
+      else f[dfield] = t.value;
+      saveState(); renderFlags();
+    }
+    // leaders simple fields
+    const leader = state.leaders.find(x=>x.id===did);
+    if(leader && ['name','title','startDate','endDate','notes'].includes(dfield)){
+      leader[dfield] = t.value; saveState();
+    }
+    // parties global
+    const party = state.parties.find(x=>x.id===did);
+    if(party && ['pname','position'].includes(dfield)){
+      if(dfield==='pname') party.name = t.value; else party.position = t.value; saveState(); renderParties();
+    }
+    // misc title
+    const misc = state.misc.find(x=>x.id===did);
+    if(misc && dfield==='title'){ misc.title = t.value; saveState(); renderMisc(); }
+  }
+
+  // election fields and party editing inside election
+  const eid = t.getAttribute('data-id');
+  if(eid && t.getAttribute('data-field')){
+    const field = t.getAttribute('data-field');
+    const el = state.elections.find(x=>x.id===eid); if(!el) return;
+    el[field] = t.value; saveState(); renderElections();
+  }
+  const electionIdx = t.getAttribute('data-election');
+  const partyIdx = t.getAttribute('data-party');
+  const pfield = t.getAttribute('data-field');
+  if(electionIdx!==null && partyIdx!==null && pfield){
+    const el = state.elections.find(x=>x.id===electionIdx);
+    if(!el) return;
+    const p = el.parties[Number(partyIdx)]; if(!p) return;
+    if(pfield==='pname') p.name = t.value;
+    if(pfield==='ppercent') p.percent = Number(t.value);
+    if(pfield==='pcolor') p.color = t.value;
+    saveState(); renderElections();
+  }
+
+});
+
+// file change events
+document.addEventListener('change', (ev)=>{
+  const t = ev.target; if(!t) return;
+  // country photo
+  if(t.id==='countryPhoto' && t.files && t.files[0]){
+    fileToDataURL(t.files[0], data=>{ state.general.countryPhoto = data; saveState(); renderGeneral(); });
+  }
+  // anthem file
+  if(t.id==='anthemFile' && t.files && t.files[0]){
+    fileToDataURL(t.files[0], data=>{ state.general.anthemFile = {name:t.files[0].name,data}; saveState(); renderGeneral(); });
+  }
+
+  // delegated files for lists
+  const did = t.getAttribute('data-id');
+  if(did && t.files && t.files[0]){
+    // flags images
+    if(state.flags.find(x=>x.id===did)){
+      fileToDataURL(t.files[0], data=>{ const f = state.flags.find(x=>x.id===did); f.image = data; saveState(); renderFlags(); });
+    }
+    // leader image
+    if(state.leaders.find(x=>x.id===did)){
+      fileToDataURL(t.files[0], data=>{ const l = state.leaders.find(x=>x.id===did); l.image = data; saveState(); renderLeaders(); });
+    }
+    // party logo
+    if(state.parties.find(x=>x.id===did)){
+      fileToDataURL(t.files[0], data=>{ const p = state.parties.find(x=>x.id===did); p.logo = data; saveState(); renderParties(); });
+    }
+    // misc file
+    if(state.misc.find(x=>x.id===did)){
+      fileToDataURL(t.files[0], data=>{ const m = state.misc.find(x=>x.id===did); m.data = data; m.type = t.files[0].type; m.name = t.files[0].name; saveState(); renderMisc(); });
+    }
+  }
+});
+
+// click actions
+document.addEventListener('click',(ev)=>{
+  const t = ev.target; if(!t) return;
+  const action = t.getAttribute('data-action');
+  if(action==='delete'){ const id=t.getAttribute('data-id'); state.flags = state.flags.filter(x=>x.id!==id); saveState(); renderFlags(); }
+  if(action==='deleteLeader'){ const id=t.getAttribute('data-id'); state.leaders = state.leaders.filter(x=>x.id!==id); saveState(); renderLeaders(); }
+  if(action==='delElection'){ const id=t.getAttribute('data-id'); state.elections = state.elections.filter(x=>x.id!==id); saveState(); renderElections(); }
+  if(action==='addParty'){ const id=t.getAttribute('data-id'); const el = state.elections.find(x=>x.id===id); if(el){ el.parties.push({name:'Partido',percent:10,color:'#'+Math.random().toString(16).slice(2,8)}); saveState(); renderElections(); } }
+  if(action==='delParty'){ const eid=t.getAttribute('data-election'); const pIdx=Number(t.getAttribute('data-party')); const el=state.elections.find(x=>x.id===eid); if(el){ el.parties.splice(pIdx,1); saveState(); renderElections(); } }
+  if(action==='delPartyGlobal'){ const id=t.getAttribute('data-id'); state.parties = state.parties.filter(x=>x.id!==id); saveState(); renderParties(); }
+  if(action==='delMisc'){ const id=t.getAttribute('data-id'); state.misc = state.misc.filter(x=>x.id!==id); saveState(); renderMisc(); }
+});
+
+// add new items
+document.getElementById('addFlag').addEventListener('click', ()=>{
+  state.flags.unshift({id:uid('flag_'),image:null,startDate:'',endDate:'',endIsToday:false}); saveState(); renderFlags(); });
+
+document.getElementById('addLeader').addEventListener('click', ()=>{
+  state.leaders.unshift({id:uid('ldr_'),name:'Nuevo líder',title:'',startDate:'',endDate:'',notes:'',image:null}); saveState(); renderLeaders(); });
+
+document.getElementById('addElection').addEventListener('click', ()=>{
+  state.elections.unshift({id:uid('el_'),date:'',title:'',notes:'',parties:[{name:'Partido A',percent:50,color:'#ff6384'},{name:'Partido B',percent:50,color:'#36a2eb'}]}); saveState(); renderElections(); });
+
+document.getElementById('addParty').addEventListener('click', ()=>{
+  state.parties.unshift({id:uid('p_'),name:'Nuevo Partido',position:'centro',logo:null}); saveState(); renderParties(); });
+
+document.getElementById('addMisc').addEventListener('click', ()=>{
+  state.misc.unshift({id:uid('m_'),title:'Nuevo',type:'archivo',data:null}); saveState(); renderMisc(); });
+
+// save/reset general
+document.getElementById('saveGeneral').addEventListener('click', ()=>{ saveState(); alert('Guardado'); });
+document.getElementById('resetGeneral').addEventListener('click', ()=>{ if(confirm('Resetear información general?')){ state.general={countryName:'',anthemUrl:'',anthemFile:null,countryPhoto:null,capitalName:'',cities:'',nextElections:''}; saveState(); renderGeneral(); } });
+
+// Export/Import
+document.getElementById('exportJSON').addEventListener('click', ()=>{
+  const dataStr = JSON.stringify(state);
+  const blob = new Blob([dataStr], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='pais_editor_export.json'; a.click(); URL.revokeObjectURL(url);
+});
+
+document.getElementById('importJSON').addEventListener('click', ()=>{ document.getElementById('importFile').click(); });
+
+document.getElementById('importFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader(); r.onload = ()=>{ try{ state = JSON.parse(r.result); saveState(); renderAll(); alert('Importado'); }catch(e){ alert('Error al importar: '+e) } }; r.readAsText(f);
+});
+
+// clear all
+document.getElementById('clearAll').addEventListener('click', ()=>{ if(confirm('Borrar todos los datos guardados?')){ localStorage.removeItem(STORAGE_KEY); state = {general:{countryName:'',anthemUrl:'',anthemFile:null,countryPhoto:null,capitalName:'',cities:'',nextElections:''},flags:[],leaders:[],elections:[],parties:[],misc:[]}; renderAll(); } });
+
+// Navigation
+document.querySelectorAll('.navBtn').forEach(b=>b.addEventListener('click', ()=>{
+  document.querySelectorAll('.navBtn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('main section').forEach(s=>s.style.display='none');
+  document.getElementById(b.getAttribute('data-target')).style.display = 'block';
+}));
+
+// Utils
+function escapeHtml(s){ if(!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Initial load
+loadState(); // will populate state if exists
+renderAll();
+
+// Reflexión diaria: actualizar endDate si endIsToday
+function refreshTodayFlags(){
+  const today = new Date().toISOString().slice(0,10);
+  let changed=false;
+  state.flags.forEach(f=>{ if(f.endIsToday){ if(f.endDate !== today){ f.endDate = today; changed=true } } });
+  state.leaders.forEach(l=>{ /* opcional: podrías tener bandera 'endIsToday' para líderes también */ });
+  if(changed) saveState();
+}
+
+// actualizar hoy al cargar y luego cada 24h
+refreshTodayFlags(); setInterval(refreshTodayFlags, 1000*60*60*24);
+
+// también refrescar charts cada vez que haya cambios (ya lo hace renderElections)
+
+</script>
+</body>
+</html>
